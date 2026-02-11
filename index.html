@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ATLAS | Segmento Urbano</title>
     
-    <!-- React & ReactDOM (UMD for browser) -->
+    <!-- React & ReactDOM (UMD) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel (to compile JSX) -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <!-- Tailwind CSS -->
@@ -27,11 +27,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=Oswald:wght@300;400&display=swap" rel="stylesheet">
 
     <style>
-        /* ALLOW SCROLLING */
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; overflow-y: auto; overflow-x: hidden; }
         .leaflet-container { height: 100%; width: 100%; z-index: 0; }
-        
-        /* Typography for Architectural look */
         .font-arch { font-family: 'Oswald', sans-serif; }
         
         /* Custom Context Menu */
@@ -74,25 +71,17 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #525252; border-radius: 0px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #000; }
 
-        /* Drawing Cursor - Finer Crosshair with larger gap */
-        .drawing-mode, 
-        .drawing-mode .leaflet-grab,
-        .drawing-mode .leaflet-interactive {
+        /* Cursor Styles */
+        .drawing-mode, .drawing-mode .leaflet-grab, .drawing-mode .leaflet-interactive {
             cursor: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3C!-- White Outline --%3E%3Cpath d='M12 2V8 M12 16V22 M2 12H8 M16 12H22' stroke='white' stroke-width='2.5' stroke-linecap='square'/%3E%3Ccircle cx='12' cy='12' r='2' fill='white'/%3E%3C!-- Black Fine Lines --%3E%3Cpath d='M12 2V8 M12 16V22 M2 12H8 M16 12H22' stroke='black' stroke-width='1' stroke-linecap='square'/%3E%3Ccircle cx='12' cy='12' r='1' fill='black'/%3E%3C/svg%3E") 12 12, crosshair !important;
         }
-
-        /* Panning Cursor Override during Right-Click drag in Drawing Mode */
-        .drawing-panning,
-        .drawing-panning .leaflet-grab,
-        .drawing-panning .leaflet-interactive,
-        .drawing-panning .leaflet-container {
+        .drawing-panning, .drawing-panning .leaflet-grab, .drawing-panning .leaflet-interactive, .drawing-panning .leaflet-container {
             cursor: grabbing !important;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
+        /* Modal Animation */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -101,193 +90,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // --- Translations ---
-        const TRANSLATIONS = {
-            en: {
-                searchPlaceholder: "Search Address or GPS...",
-                locate: "Locate",
-                upload: "Upload",
-                uploadTooltip: "PDM maps, Territory Tax certificate",
-                clear: "Clear",
-                data: "Data",
-                export: "Export",
-                jsonData: "JSON Data",
-                pdfReport: "PDF Report",
-                siteData: "Site Data",
-                coordinates: "Coords",
-                address: "Address",
-                zip: "Zip",
-                city: "City",
-                parish: "Parish",
-                context: "Context",
-                area: "Area",
-                vertices: "Vertices",
-                penColor: "Pen Color",
-                finish: "Finish",
-                drawPolygon: "Draw Polygon",
-                collapse: "Collapse",
-                expand: "Expand",
-                rights: "All Rights Reserved",
-                privacy: "Privacy Policies and Cookies",
-                terms: "Terms and Conditions",
-                accessibility: "Accessibility Statement",
-                footerText: "Land Staging™ is an exclusive methodology created by Segmento Urbano that assesses, clarifies, and projects the potential of land plots that are often considered “invisible” or difficult to place on the market. For more details: geral@segmentourbano.com"
-            },
-            pt: {
-                searchPlaceholder: "Pesquisar Morada ou GPS...",
-                locate: "Localizar",
-                upload: "Carregar",
-                uploadTooltip: "Mapas PDM, Caderneta Predial",
-                clear: "Limpar",
-                data: "Dados",
-                export: "Exportar",
-                jsonData: "Dados JSON",
-                pdfReport: "Relatório PDF",
-                siteData: "Dados do Local",
-                coordinates: "Coord.",
-                address: "Morada",
-                zip: "C. Postal",
-                city: "Concelho",
-                parish: "Freguesia",
-                context: "Envolvente",
-                area: "Área",
-                vertices: "Vértices",
-                penColor: "Cor Caneta",
-                finish: "Concluir",
-                drawPolygon: "Desenhar Polígono",
-                collapse: "Colapsar",
-                expand: "Expandir",
-                rights: "Todos os Direitos Reservados",
-                privacy: "Políticas de Privacidade e Cookies",
-                terms: "Termos e Condições",
-                accessibility: "Declaração de Acessibilidade",
-                footerText: "Land Staging™ é uma metodologia exclusiva criada pela Segmento Urbano que avalia, clarifica e projeta o potencial de terrenos muitas vezes considerados “invisíveis” ou de difícil colocação no mercado. Para mais detalhes: geral@segmentourbano.com"
-            }
-        };
-
-        // --- Icons ---
-        const Icons = {
-            Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
-            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
-            FileJson: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
-            Table: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>,
-            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
-            MapPin: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>,
-            Crosshair: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>,
-            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
-            ChevronUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>,
-            Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
-            FilePdf: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13v-2"/><path d="M10 11h1"/><path d="M10 14h1"/><path d="M14 11h-1v3h1"/></svg>,
-            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-        };
-
-        // --- Layout Components ---
-
-        // Header: Sticky at top
-        const Header = ({ lang, setLang }) => (
-            <header className="sticky top-0 w-full bg-white text-black border-b border-gray-200 px-6 py-4 flex items-center justify-between z-[2000] shadow-sm">
-                <div className="flex items-baseline gap-4">
-                    <h1 className="text-3xl font-arch font-normal tracking-wider uppercase">ATLAS - Landstaging™</h1>
-                    <span className="text-xs text-gray-500 font-light tracking-widest lowercase">powered by segmento urbano</span>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    {/* Language Switch */}
-                    <div className="text-xs font-medium tracking-wide text-gray-500">
-                        <span 
-                            onClick={() => setLang('pt')} 
-                            className={`cursor-pointer transition-colors ${lang === 'pt' ? 'text-black font-bold' : 'hover:text-black'}`}
-                        >PT</span>
-                        <span className="mx-1">|</span>
-                        <span 
-                            onClick={() => setLang('en')} 
-                            className={`cursor-pointer transition-colors ${lang === 'en' ? 'text-black font-bold' : 'hover:text-black'}`}
-                        >EN</span>
-                    </div>
-
-                    {/* User Profile Placeholder */}
-                    <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors" title="User Profile (Future Feature)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                    </div>
-                </div>
-            </header>
-        );
-
-        // Footer: Collapsible
-        const Footer = ({ t }) => {
-            const [isExpanded, setIsExpanded] = useState(true);
-
-            return (
-                <footer className="bg-black text-white px-8 py-6 text-xs font-light z-40 w-full relative">
-                    <div className="absolute top-4 right-6">
-                         <button 
-                            onClick={() => setIsExpanded(!isExpanded)}
-                            className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors uppercase tracking-widest text-[10px]"
-                        >
-                            {isExpanded ? t.collapse : t.expand}
-                            {isExpanded ? <Icons.ChevronDown /> : <Icons.ChevronUp />}
-                        </button>
-                    </div>
-
-                    {isExpanded && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-8 pt-4 animate-fadeIn">
-                            {/* Brand */}
-                            <div className="lg:col-span-1">
-                                <h2 className="uppercase font-bold tracking-widest mb-1 text-sm">segmento urbano</h2>
-                                <p className="text-gray-400 tracking-wide text-[10px]">concept.construction.reality</p>
-                            </div>
-
-                            {/* Contact */}
-                            <div>
-                                <a href="mailto:geral@segmentourbano.com" className="hover:text-gray-300 transition-colors">geral@segmentourbano.com</a>
-                            </div>
-
-                            {/* Porto */}
-                            <div>
-                                <h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Porto</h3>
-                                <p className="leading-relaxed text-gray-300">
-                                    Praça de D. João I 80<br/>
-                                    4000-065 Porto, Portugal
-                                </p>
-                            </div>
-
-                            {/* Lisboa */}
-                            <div>
-                                <h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Lisboa</h3>
-                                <p className="leading-relaxed text-gray-300">
-                                    Av. Dom João II 50, Edifício Mar Vermelho,<br/>
-                                    Parque das Nações<br/>
-                                    1990-095 Lisboa, Portugal
-                                </p>
-                            </div>
-
-                            {/* Luanda */}
-                            <div>
-                                <h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Luanda</h3>
-                                <p className="leading-relaxed text-gray-300">
-                                    Rua Rainha Ginga 37 2º Direito<br/>
-                                    Luanda, Angola
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className={`flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-gray-500 uppercase tracking-wider ${isExpanded ? 'border-t border-gray-800 pt-6' : ''}`}>
-                        <p>© 2026. Segmento Urbano. {t.rights}</p>
-                        <div className="flex gap-6">
-                            <a href="#" className="hover:text-white transition-colors">{t.privacy}</a>
-                            <a href="#" className="hover:text-white transition-colors">{t.terms}</a>
-                            <a href="#" className="hover:text-white transition-colors">{t.accessibility}</a>
-                        </div>
-                    </div>
-                </footer>
-            );
-        };
-
-        // --- Helper Functions ---
+        // --- Helper Functions (Moved to Top) ---
         const calculatePolygonArea = (latLngs) => {
             if (latLngs.length < 3) return 0;
             const earthRadius = 6378137; 
@@ -311,10 +114,347 @@
             return `${sqMeters.toFixed(2)} m²`;
         };
 
+        // --- Translations ---
+        const TRANSLATIONS = {
+            en: {
+                searchPlaceholder: "Search Address or GPS...",
+                locate: "Locate",
+                upload: "Upload",
+                uploadTooltip: "PDM maps, Territory Tax certificate",
+                clear: "Clear",
+                data: "Data",
+                pdmAnalysis: "PDM Analysis",
+                siteData: "Site Data",
+                coordinates: "Coords",
+                address: "Address",
+                zip: "Zip",
+                city: "City",
+                parish: "Parish",
+                context: "Context",
+                area: "Area",
+                vertices: "Vertices",
+                penColor: "Pen Color",
+                finish: "Finish",
+                drawPolygon: "Draw Polygon",
+                collapse: "Collapse",
+                expand: "Expand",
+                rights: "All Rights Reserved",
+                privacy: "Privacy Policies and Cookies",
+                terms: "Terms and Conditions",
+                accessibility: "Accessibility Statement",
+                footerText: "Land Staging™ is an exclusive methodology created by Segmento Urbano that assesses, clarifies, and projects the potential of land plots that are often considered “invisible” or difficult to place on the market. For more details: geral@segmentourbano.com",
+                captchaText: "I am not a robot",
+                formTitle: "Request PDM Analysis",
+                name: "Name",
+                company: "Company",
+                position: "Position",
+                email: "Email",
+                privacyLabel: "I authorize the processing of my email address to receive commercial communications, news and content from Segmento Urbano, in accordance with the Privacy Policy.",
+                cancel: "Cancel",
+                submit: "Next", // Changed to Next because there's a step after
+                successTitle: "Thank you!",
+                successMsg: "We are preparing your PDM analysis. This process can take up to 48 hours to be completed and verified. Thank you for your patience.",
+                brochureText: "To find more about LandStaging TM please see our brochure",
+                brochureLink: "download brochure",
+                contactText: "or contact",
+                roles: { owner: "Owner", architect: "Architect", agent: "Real Estate Agent", constructor: "Constructor", investor: "Investor" },
+                // New Plan Texts
+                planSelectionTitle: "Choose Report Type",
+                freePlanTitle: "Standard Report",
+                freePlanPrice: "Free",
+                freePlanDesc: "Preliminary PDM analysis with identification of space classes and general administrative constraints. Ideal for a first validation of the land's potential.",
+                freePlanButton: "Request Free",
+                paidPlanTitle: "Land Staging™ Premium",
+                paidPlanPrice: "On Request",
+                paidPlanDesc: "Detailed study with area charts, urban indices, estimated volumetry, and technical architectural opinion. The essential tool to maximize asset value.",
+                paidPlanButton: "Request Proposal"
+            },
+            pt: {
+                searchPlaceholder: "Pesquisar Morada ou GPS...",
+                locate: "Localizar",
+                upload: "Carregar",
+                uploadTooltip: "Mapas PDM, Caderneta Predial",
+                clear: "Limpar",
+                data: "Dados",
+                pdmAnalysis: "Análise PDM",
+                siteData: "Dados do Local",
+                coordinates: "Coord.",
+                address: "Morada",
+                zip: "C. Postal",
+                city: "Concelho",
+                parish: "Freguesia",
+                context: "Envolvente",
+                area: "Área",
+                vertices: "Vértices",
+                penColor: "Cor Caneta",
+                finish: "Concluir",
+                drawPolygon: "Desenhar Polígono",
+                collapse: "Colapsar",
+                expand: "Expandir",
+                rights: "Todos os Direitos Reservados",
+                privacy: "Políticas de Privacidade e Cookies",
+                terms: "Termos e Condições",
+                accessibility: "Declaração de Acessibilidade",
+                footerText: "Land Staging™ é uma metodologia exclusiva criada pela Segmento Urbano que avalia, clarifica e projeta o potencial de terrenos muitas vezes considerados “invisíveis” ou de difícil colocação no mercado. Para mais detalhes: geral@segmentourbano.com",
+                captchaText: "Não sou um robô",
+                formTitle: "Solicitar Análise PDM",
+                name: "Nome",
+                company: "Empresa",
+                position: "Cargo",
+                email: "Email",
+                privacyLabel: "Autorizo o tratamento do meu endereço de email para receber comunicações comerciais, novidades e conteúdos da Segmento Urbano, nos termos da Política de Privacidade.",
+                cancel: "Cancelar",
+                submit: "Seguinte", // Changed for flow
+                successTitle: "Obrigado!",
+                successMsg: "Estamos a preparar a sua análise PDM. Este processo pode demorar até 48 horas a ser concluído e verificado. Obrigado pela sua paciência.",
+                brochureText: "Para saber mais sobre LandStaging TM consulte a nossa brochura",
+                brochureLink: "descarregar brochura",
+                contactText: "ou contacte",
+                roles: { owner: "Proprietário", architect: "Arquiteto", agent: "Agente Imobiliário", constructor: "Construtor", investor: "Investidor" },
+                // New Plan Texts
+                planSelectionTitle: "Escolha o tipo de Relatório",
+                freePlanTitle: "Relatório Standard",
+                freePlanPrice: "Gratuito",
+                freePlanDesc: "Análise preliminar do PDM com identificação de classes de espaço e condicionantes administrativas gerais. Ideal para uma primeira validação do potencial do terreno.",
+                freePlanButton: "Pedir Gratuito",
+                paidPlanTitle: "Land Staging™ Premium",
+                paidPlanPrice: "Sob Consulta",
+                paidPlanDesc: "Estudo detalhado com quadro de áreas, índices urbanísticos, volumetria estimada e parecer técnico de arquitetura. A ferramenta essencial para maximizar o valor do ativo.",
+                paidPlanButton: "Pedir Proposta"
+            }
+        };
+
+        // --- Icons ---
+        const Icons = {
+            Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>,
+            FileJson: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>,
+            Table: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            MapPin: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>,
+            Crosshair: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>,
+            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+            ChevronUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>,
+            Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+            FilePdf: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M10 13v-2"/><path d="M10 11h1"/><path d="M10 14h1"/><path d="M14 11h-1v3h1"/></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            Analysis: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-green-600"><polyline points="20 6 9 17 4 12"/></svg>,
+            Star: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="text-yellow-500"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        };
+
+        // --- Layout Components ---
+
+        const Header = ({ lang, setLang }) => (
+            <header className="sticky top-0 w-full bg-white text-black border-b border-gray-200 px-6 py-4 flex items-center justify-between z-[2000] shadow-sm">
+                <div className="flex items-baseline gap-4">
+                    <h1 className="text-3xl font-arch font-normal tracking-wider uppercase flex items-start">
+                        ATLAS - Landstaging
+                        <sup className="text-[0.5em] mt-2 ml-0.5">TM</sup>
+                    </h1>
+                    <span className="text-xs text-gray-500 font-light tracking-widest lowercase">powered by segmento urbano</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="text-xs font-medium tracking-wide text-gray-500">
+                        <span onClick={() => setLang('pt')} className={`cursor-pointer transition-colors ${lang === 'pt' ? 'text-black font-bold' : 'hover:text-black'}`}>PT</span>
+                        <span className="mx-1">|</span>
+                        <span onClick={() => setLang('en')} className={`cursor-pointer transition-colors ${lang === 'en' ? 'text-black font-bold' : 'hover:text-black'}`}>EN</span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors" title="User Profile">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                </div>
+            </header>
+        );
+
+        const Footer = ({ t }) => {
+            const [isExpanded, setIsExpanded] = useState(true);
+            return (
+                <footer className="bg-black text-white px-8 py-6 text-xs font-light z-40 w-full relative">
+                    <div className="absolute top-4 right-6">
+                         <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors uppercase tracking-widest text-[10px]">
+                            {isExpanded ? t.collapse : t.expand}
+                            {isExpanded ? <Icons.ChevronDown /> : <Icons.ChevronUp />}
+                        </button>
+                    </div>
+                    {isExpanded && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-8 pt-4 animate-fadeIn">
+                            <div className="lg:col-span-1">
+                                <h2 className="uppercase font-bold tracking-widest mb-1 text-sm">segmento urbano</h2>
+                                <p className="text-gray-400 tracking-wide text-[10px]">concept.construction.reality</p>
+                            </div>
+                            <div><a href="mailto:geral@segmentourbano.com" className="hover:text-gray-300 transition-colors">geral@segmentourbano.com</a></div>
+                            <div><h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Porto</h3><p className="leading-relaxed text-gray-300">Praça de D. João I 80<br/>4000-065 Porto, Portugal</p></div>
+                            <div><h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Lisboa</h3><p className="leading-relaxed text-gray-300">Av. Dom João II 50, Edifício Mar Vermelho,<br/>Parque das Nações<br/>1990-095 Lisboa, Portugal</p></div>
+                            <div><h3 className="uppercase font-bold mb-2 text-[10px] text-gray-500">Luanda</h3><p className="leading-relaxed text-gray-300">Rua Rainha Ginga 37 2º Direito<br/>Luanda, Angola</p></div>
+                        </div>
+                    )}
+                    <div className={`flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-gray-500 uppercase tracking-wider ${isExpanded ? 'border-t border-gray-800 pt-6' : ''}`}>
+                        <p>© 2026. Segmento Urbano. {t.rights}</p>
+                        <div className="flex gap-6">
+                            <a href="#" className="hover:text-white transition-colors">{t.privacy}</a>
+                            <a href="#" className="hover:text-white transition-colors">{t.terms}</a>
+                            <a href="#" className="hover:text-white transition-colors">{t.accessibility}</a>
+                        </div>
+                    </div>
+                </footer>
+            );
+        };
+
+        // --- Analysis Modal Component ---
+        const AnalysisModal = ({ onClose, t }) => {
+            const [step, setStep] = useState(1); // 1: Captcha, 2: Form, 3: Plans, 4: Success
+            const [loading, setLoading] = useState(false);
+            const [formData, setFormData] = useState({ name: '', company: '', position: 'owner', email: '', agree: false });
+            const [selectedPlan, setSelectedPlan] = useState(null);
+
+            const handleCaptcha = () => {
+                setLoading(true);
+                setTimeout(() => {
+                    setLoading(false);
+                    setStep(2);
+                }, 1000); 
+            };
+
+            const handleFormSubmit = (e) => {
+                e.preventDefault();
+                // Move to plan selection instead of submitting immediately
+                setStep(3);
+            };
+
+            const handlePlanSelection = (planType) => {
+                setSelectedPlan(planType);
+                setLoading(true);
+                setTimeout(() => {
+                    // Simulate email send
+                    console.log(`[Email Sent] To: ${formData.email}, Company: ${formData.company}, Plan: ${planType}, Subject: PDM Analysis Request`);
+                    alert(`System: Email simulated to ${formData.email} regarding ${planType} plan.`);
+                    setLoading(false);
+                    setStep(4);
+                }, 1500);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+                    <div className={`bg-white w-full ${step === 3 ? 'max-w-2xl' : 'max-w-md'} shadow-2xl rounded-sm overflow-hidden animate-[slideUp_0.3s_ease-out] transition-all duration-300`}>
+                        <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                            <h3 className="font-arch text-lg uppercase tracking-wider text-black">{step === 3 ? t.planSelectionTitle : t.pdmAnalysis}</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-black"><Icons.X /></button>
+                        </div>
+                        <div className="p-8">
+                            {/* Step 1: Captcha */}
+                            {step === 1 && (
+                                <div className="flex flex-col items-center gap-6 py-4">
+                                    <div onClick={!loading ? handleCaptcha : undefined} className={`w-full max-w-[250px] bg-gray-50 border ${loading ? 'border-gray-300' : 'border-gray-300 hover:border-blue-400 hover:bg-white'} rounded p-4 flex items-center gap-4 cursor-pointer transition-all shadow-sm`}>
+                                        <div className={`w-6 h-6 border-2 ${loading ? 'border-gray-300 border-t-blue-500 animate-spin rounded-full' : 'border-gray-300 rounded flex items-center justify-center'}`}></div>
+                                        <span className="text-sm font-medium text-gray-700">{t.captchaText}</span>
+                                        <div className="ml-auto flex flex-col items-center">
+                                            <div className="w-6 h-6 overflow-hidden rounded-full bg-blue-50 relative">
+                                                <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-cyan-300 opacity-20"></div>
+                                            </div>
+                                            <span className="text-[8px] text-gray-400 mt-1">reCAPTCHA</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 text-center">Security Check</p>
+                                </div>
+                            )}
+
+                            {/* Step 2: Form */}
+                            {step === 2 && (
+                                <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 animate-fadeIn">
+                                    {/* Name Field */}
+                                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t.name}</label><input required type="text" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
+                                    
+                                    {/* Company Field (New) */}
+                                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t.company}</label><input type="text" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} /></div>
+                                    
+                                    {/* Position Field */}
+                                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t.position}</label><select className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-black bg-white" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})}><option value="owner">{t.roles.owner}</option><option value="architect">{t.roles.architect}</option><option value="agent">{t.roles.agent}</option><option value="constructor">{t.roles.constructor}</option><option value="investor">{t.roles.investor}</option></select></div>
+                                    
+                                    {/* Email Field (Required) */}
+                                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t.email} <span className="text-red-500">*</span></label><input required type="email" className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-black transition-colors" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+                                    
+                                    {/* Disclaimer Checkbox */}
+                                    <div className="flex items-start gap-2 pt-2">
+                                        <input required type="checkbox" id="privacy" className="accent-black w-4 h-4 cursor-pointer mt-0.5" checked={formData.agree} onChange={e => setFormData({...formData, agree: e.target.checked})} />
+                                        <label htmlFor="privacy" className="text-[10px] text-gray-600 cursor-pointer hover:text-black leading-tight text-justify">{t.privacyLabel}</label>
+                                    </div>
+                                    
+                                    {/* Buttons (Submit disabled unless agreed) */}
+                                    <div className="flex gap-3 mt-4 pt-4 border-t border-gray-100">
+                                        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 text-xs uppercase tracking-widest hover:bg-gray-50">{t.cancel}</button>
+                                        <button type="submit" disabled={!formData.agree} className={`flex-1 px-4 py-2 text-xs uppercase tracking-widest transition-colors ${!formData.agree ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}>{t.submit}</button>
+                                    </div>
+                                </form>
+                            )}
+
+                            {/* Step 3: Plan Selection (New) */}
+                            {step === 3 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
+                                    {/* Free Plan */}
+                                    <div className="border border-gray-200 p-6 rounded-sm hover:border-gray-400 transition-colors flex flex-col">
+                                        <div className="mb-4">
+                                            <h4 className="font-arch text-xl uppercase tracking-wide text-gray-800">{t.freePlanTitle}</h4>
+                                            <p className="text-2xl font-bold mt-2 text-gray-400">{t.freePlanPrice}</p>
+                                        </div>
+                                        <p className="text-sm text-gray-500 leading-relaxed mb-6 flex-1">
+                                            {t.freePlanDesc}
+                                        </p>
+                                        <button 
+                                            onClick={() => handlePlanSelection('free')} 
+                                            disabled={loading}
+                                            className="w-full py-3 border border-black text-black text-xs uppercase tracking-widest font-bold hover:bg-black hover:text-white transition-colors"
+                                        >
+                                            {loading ? '...' : t.freePlanButton}
+                                        </button>
+                                    </div>
+
+                                    {/* Paid Plan */}
+                                    <div className="border border-black p-6 rounded-sm bg-black text-white flex flex-col relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 bg-yellow-500 text-black text-[9px] font-bold px-3 py-1 uppercase tracking-widest">Recommended</div>
+                                        <div className="mb-4">
+                                            <h4 className="font-arch text-xl uppercase tracking-wide text-white flex items-center gap-2">
+                                                {t.paidPlanTitle}
+                                            </h4>
+                                            <p className="text-2xl font-bold mt-2 text-yellow-500">{t.paidPlanPrice}</p>
+                                        </div>
+                                        <p className="text-sm text-gray-300 leading-relaxed mb-6 flex-1">
+                                            {t.paidPlanDesc}
+                                        </p>
+                                        <button 
+                                            onClick={() => handlePlanSelection('paid')} 
+                                            disabled={loading}
+                                            className="w-full py-3 bg-white text-black text-xs uppercase tracking-widest font-bold hover:bg-gray-200 transition-colors"
+                                        >
+                                            {loading ? '...' : t.paidPlanButton}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Step 4: Success */}
+                            {step === 4 && (
+                                <div className="text-center py-6 animate-fadeIn">
+                                    <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4"><Icons.Check /></div>
+                                    <h4 className="text-xl font-arch uppercase tracking-wide mb-3">{t.successTitle}</h4>
+                                    <p className="text-sm text-gray-600 leading-relaxed mb-6 px-4">{t.successMsg}</p>
+                                    <div className="bg-gray-50 p-4 rounded-sm border border-gray-100 text-xs text-gray-500"><p>{t.brochureText}</p><a href="#" className="block mt-2 font-bold text-blue-600 uppercase tracking-wider hover:underline">{t.brochureLink}</a><p className="mt-3">{t.contactText} <a href="mailto:geral@segmentourbano.com" className="font-bold text-black">geral@segmentourbano.com</a></p></div>
+                                    <button onClick={onClose} className="mt-6 text-xs font-bold text-gray-400 hover:text-black uppercase tracking-widest">Close</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- Main Widget Component ---
         const MapWidget = ({ t }) => {
             const mapRef = useRef(null);
-            const mapContainerRef = useRef(null); // Ref for PDF capture
+            const mapContainerRef = useRef(null);
             const mapInstance = useRef(null);
             const polygonLayer = useRef(null);
             const markerLayer = useRef(null);
@@ -330,9 +470,9 @@
             const [selectedColor, setSelectedColor] = useState("#2563eb");
             const [polyArea, setPolyArea] = useState(0);
             
-            // Export State
-            const [showExportMenu, setShowExportMenu] = useState(false);
-            const exportMenuRef = useRef(null);
+            const [showModal, setShowModal] = useState(false); 
+            const [showExportMenu, setShowExportMenu] = useState(false); // Hidden feature state
+            const exportMenuRef = useRef(null); // Hidden feature ref
 
             const [showMetadata, setShowMetadata] = useState(false);
             const [metadata, setMetadata] = useState({
@@ -353,16 +493,12 @@
                 }
             }, [drawingMode]);
 
-            // --- Right Click Pan Logic ---
             useEffect(() => {
                 if (!drawingMode || !mapInstance.current || !mapRef.current) return;
-
                 const map = mapInstance.current;
                 const container = map.getContainer(); 
-                
                 let isRightDown = false;
                 let lastPoint = null;
-
                 const onMouseDown = (e) => {
                     if (e.button === 2) { 
                         isRightDown = true;
@@ -370,7 +506,6 @@
                         container.classList.add('drawing-panning');
                     }
                 };
-
                 const onMouseMove = (e) => {
                     if (isRightDown && lastPoint) {
                         const dx = e.clientX - lastPoint.x;
@@ -379,7 +514,6 @@
                         lastPoint = { x: e.clientX, y: e.clientY };
                     }
                 };
-
                 const onMouseUp = (e) => {
                     if (e.button === 2) {
                         isRightDown = false;
@@ -387,14 +521,11 @@
                         container.classList.remove('drawing-panning');
                     }
                 };
-                
                 const onContextMenu = (e) => e.preventDefault();
-
                 container.addEventListener('mousedown', onMouseDown);
                 window.addEventListener('mousemove', onMouseMove);
                 window.addEventListener('mouseup', onMouseUp);
                 container.addEventListener('contextmenu', onContextMenu);
-
                 return () => {
                     container.removeEventListener('mousedown', onMouseDown);
                     window.removeEventListener('mousemove', onMouseMove);
@@ -404,26 +535,10 @@
                 };
             }, [drawingMode]);
 
-            // Close Export menu on outside click
-            useEffect(() => {
-                const handleClickOutside = (event) => {
-                    if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
-                        setShowExportMenu(false);
-                    }
-                };
-                document.addEventListener("mousedown", handleClickOutside);
-                return () => {
-                    document.removeEventListener("mousedown", handleClickOutside);
-                };
-            }, []);
-
-
             useEffect(() => {
                 if (!mapInstance.current && mapRef.current) {
-                    // preferCanvas: true fixes html2canvas rendering for vectors (polygons)
                     const map = L.map(mapRef.current, { zoomControl: false, preferCanvas: true }).setView([39.3999, -8.2245], 7);
                     
-                    // Added crossOrigin: true for html2canvas support
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                         subdomains: 'abcd',
@@ -438,11 +553,7 @@
 
                     map.on('contextmenu', (e) => {
                         if (drawingModeRef.current) return; 
-                        setContextMenu({
-                            x: e.originalEvent.clientX,
-                            y: e.originalEvent.clientY,
-                            latlng: e.latlng
-                        });
+                        setContextMenu({ x: e.originalEvent.clientX, y: e.originalEvent.clientY, latlng: e.latlng });
                     });
 
                     map.on('click', (e) => {
@@ -479,14 +590,12 @@
             const pinLocation = (latlng) => {
                 if (!mapInstance.current) return;
                 if (markerLayer.current) markerLayer.current.remove();
-                
                 const customIcon = L.divIcon({
                     className: 'custom-pin',
                     html: `<div style="background-color:black; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.2);"></div>`,
                     iconSize: [12, 12],
                     iconAnchor: [6, 6]
                 });
-
                 markerLayer.current = L.marker(latlng, { icon: customIcon }).addTo(mapInstance.current);
                 mapInstance.current.flyTo(latlng, 16);
                 fetchMetadata(latlng.lat, latlng.lng);
@@ -497,7 +606,6 @@
                 try {
                     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
                     const data = await response.json();
-                    
                     let nearbyStreets = "—";
                     try {
                         const overpassQuery = `[out:json][timeout:5];way["highway"]["name"](around:150,${lat},${lng});out tags;`;
@@ -514,15 +622,9 @@
                         const addr = data.address;
                         const scaleCalc = "1:" + Math.round(559082264 / Math.pow(2, 16)).toLocaleString();
                         setMetadata({
-                            postalCode: addr.postcode || "—",
-                            street: addr.road || addr.pedestrian || "—",
-                            streetNo: addr.house_number || "—",
-                            municipality: addr.city || addr.town || addr.municipality || "—",
-                            freguesia: addr.suburb || addr.village || addr.city_district || "—",
-                            nearby: nearbyStreets,
-                            scale: scaleCalc,
-                            lat: lat.toFixed(6),
-                            lng: lng.toFixed(6)
+                            postalCode: addr.postcode || "—", street: addr.road || addr.pedestrian || "—", streetNo: addr.house_number || "—",
+                            municipality: addr.city || addr.town || addr.municipality || "—", freguesia: addr.suburb || addr.village || addr.city_district || "—",
+                            nearby: nearbyStreets, scale: scaleCalc, lat: lat.toFixed(6), lng: lng.toFixed(6)
                         });
                         setShowMetadata(true);
                     }
@@ -556,10 +658,9 @@
 
             const startDrawing = () => {
                 setDrawingMode(true);
-                setPolygonPoints([]); // Reset points so we don't start with the right-click location
+                setPolygonPoints([]); 
                 setPolyArea(0);
                 setContextMenu(null);
-                // Removed the auto-add of the first point logic
             };
 
             const resetAll = () => {
@@ -571,107 +672,16 @@
                 setShowMetadata(false);
             };
 
-            const downloadJson = () => {
-                const data = {
-                    project: "ATLAS - Segmento Urbano",
-                    metadata: metadata,
-                    polygon: { area: formatArea(polyArea), coordinates: polygonPoints },
-                    timestamp: new Date().toISOString()
-                };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'atlas_segmento_urbano_analysis.json';
-                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                setShowExportMenu(false);
-            };
-
-            const handleDownloadPdf = () => {
-                if (!mapContainerRef.current) return;
-                
-                const element = mapContainerRef.current;
-                
-                html2canvas(element, {
-                    useCORS: true, // Crucial for map tiles
-                    allowTaint: true,
-                    logging: false,
-                    scale: 2 // Better resolution
-                }).then(canvas => {
-                    const imgData = canvas.toDataURL('image/png');
-                    
-                    // A4 Vertical (Portrait) setup
-                    const pdf = new jspdf.jsPDF({
-                        orientation: 'portrait',
-                        unit: 'mm',
-                        format: 'a4'
-                    });
-                    
-                    const pageWidth = pdf.internal.pageSize.getWidth();
-                    const pageHeight = pdf.internal.pageSize.getHeight();
-                    const margin = 15;
-                    const contentWidth = pageWidth - (margin * 2);
-                    
-                    // --- Header ---
-                    let yPos = margin;
-                    pdf.setFont("helvetica", "bold");
-                    pdf.setFontSize(16);
-                    pdf.text("ATLAS - Landstaging™", margin, yPos);
-                    
-                    yPos += 6;
-                    pdf.setFont("helvetica", "normal");
-                    pdf.setFontSize(10);
-                    pdf.setTextColor(100);
-                    pdf.text("powered by segmento urbano", margin, yPos);
-                    
-                    yPos += 10; // Spacing before image
-
-                    // --- Image Scaling Logic ---
-                    const imgProps = pdf.getImageProperties(imgData);
-                    const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-                    
-                    // Reserve approx 35mm for footer + buffer
-                    const maxImgHeight = pageHeight - yPos - 35; 
-                    
-                    let finalImgWidth = contentWidth;
-                    let finalImgHeight = imgHeight;
-                    
-                    if (imgHeight > maxImgHeight) {
-                        finalImgHeight = maxImgHeight;
-                        finalImgWidth = (imgProps.width * finalImgHeight) / imgProps.height;
-                    }
-                    
-                    pdf.addImage(imgData, 'PNG', margin, yPos, finalImgWidth, finalImgHeight);
-
-                    // --- Footer ---
-                    const footerText = t.footerText;
-                    
-                    pdf.setFontSize(8);
-                    pdf.setTextColor(128);
-                    
-                    const footerY = pageHeight - 25; 
-                    
-                    // Wrapped text
-                    pdf.text(footerText, margin, footerY, {
-                        maxWidth: contentWidth,
-                        align: 'justify'
-                    });
-
-                    pdf.save('ATLAS_Landstaging_Report.pdf');
-                    setShowExportMenu(false);
-                }).catch(err => {
-                    console.error("PDF generation failed:", err);
-                    alert("Could not generate PDF. Please ensure map tiles loaded fully.");
-                });
-            };
-
-            // Handle file upload click
             const handleFileUpload = (e) => {
                 const files = e.target.files;
                 if (files && files.length > 0) {
-                    // Logic to handle files would go here.
-                    // For now we just alert as per instructions to "allow upload"
                     alert(`Selected ${files.length} file(s) for upload.`);
                 }
             };
+
+            // Hidden functions for future dev use
+            const downloadJson = () => { /* Logic hidden */ };
+            const handleDownloadPdf = () => { /* Logic hidden */ };
 
             useEffect(() => {
                 const closeMenu = () => setContextMenu(null);
@@ -681,42 +691,22 @@
 
             return (
                 <div className="flex flex-col w-full relative bg-gray-50 min-h-screen">
-                    
-                    {/* Widget Toolbar */}
                     <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 flex flex-col md:flex-row gap-3 items-center justify-between z-30 sticky top-[73px]">
                         <div className="flex items-center gap-2"></div>
-                        
                         <form onSubmit={handleSearch} className="flex-1 w-full flex gap-2 max-w-2xl">
                             <div className="relative flex-1">
-                                <input 
-                                    type="text" 
-                                    className="w-full pl-9 pr-4 py-2 bg-gray-100 border-none rounded-none focus:ring-1 focus:ring-black focus:outline-none text-xs tracking-wide uppercase placeholder:text-gray-400 font-medium"
-                                    placeholder={t.searchPlaceholder}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                                <input type="text" className="w-full pl-9 pr-4 py-2 bg-gray-100 border-none rounded-none focus:ring-1 focus:ring-black focus:outline-none text-xs tracking-wide uppercase placeholder:text-gray-400 font-medium" placeholder={t.searchPlaceholder} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                                 <div className="absolute left-3 top-2.5 text-gray-400"><Icons.Search /></div>
                             </div>
-                            <button 
-                                type="submit" 
-                                className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded-none text-xs uppercase tracking-widest transition-colors disabled:opacity-50"
-                                disabled={loading}
-                            >
-                                {loading ? '...' : t.locate}
-                            </button>
+                            <button type="submit" className="bg-black hover:bg-gray-800 text-white px-6 py-2 rounded-none text-xs uppercase tracking-widest transition-colors disabled:opacity-50" disabled={loading}>{loading ? '...' : t.locate}</button>
                         </form>
                     </div>
 
-                    {/* Map Area - FIXED HEIGHT (Tall) */}
                     <div className="relative border-b border-gray-200 w-full h-[85vh]" ref={mapContainerRef}>
                         <div ref={mapRef} className="h-full w-full bg-gray-200"></div>
-
-                        {/* Drawing Controls - FIXED FLOATING POSITION - IGNORED BY HTML2CANVAS */}
+                        
                         {drawingMode && (
-                            <div 
-                                data-html2canvas-ignore="true" 
-                                className="fixed top-[140px] left-1/2 transform -translate-x-1/2 bg-white px-6 py-3 shadow-xl z-[1500] flex items-center gap-6 border border-gray-100 animate-bounce-in"
-                            >
+                            <div data-html2canvas-ignore="true" className="fixed top-[140px] left-1/2 transform -translate-x-1/2 bg-white px-6 py-3 shadow-xl z-[1500] flex items-center gap-6 border border-gray-100 animate-bounce-in">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t.penColor}</span>
                                 <div className="flex gap-2">
                                     {colors.map(c => (
@@ -728,140 +718,47 @@
                             </div>
                         )}
 
-                        {/* Context Menu */}
                         {contextMenu && !drawingMode && (
                             <div className="context-menu" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
                                 <div className="context-menu-item" onClick={startDrawing}><Icons.Crosshair /> {t.drawPolygon}</div>
                             </div>
                         )}
 
-                        {/* Metadata Overlay - Compact Version */}
                         {showMetadata && (
                             <div className="absolute bottom-4 left-4 z-[500] w-[280px] metadata-overlay p-3 transition-all duration-300">
                                 <div className="flex justify-between items-start mb-2 border-b border-black pb-1">
                                     <h3 className="font-arch text-base uppercase tracking-wider text-black">{t.siteData}</h3>
                                     <button onClick={() => setShowMetadata(false)} className="text-gray-400 hover:text-black transition-colors"><Icons.X /></button>
                                 </div>
-                                
                                 <div className="space-y-2 font-mono text-[10px] text-gray-600">
                                     <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5">
-                                            <span className="uppercase text-gray-400">{t.coordinates}</span>
-                                            <span className="text-black">{metadata.lat}, {metadata.lng}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5">
-                                            <span className="uppercase text-gray-400">{t.address}</span>
-                                            <span className="text-black text-right max-w-[150px] truncate">{metadata.street} {metadata.streetNo}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-dashed border-gray-200 pb-0.5">
-                                            <span className="uppercase text-gray-400">{t.zip}</span>
-                                            <span className="text-black">{metadata.postalCode}</span>
-                                        </div>
-                                        <div className="flex justify-between border-b border-dashed border-gray-200 pb-0.5">
-                                            <span className="uppercase text-gray-400">{t.city}</span>
-                                            <span className="text-black">{metadata.municipality}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5">
-                                            <span className="uppercase text-gray-400">{t.parish}</span>
-                                            <span className="text-black">{metadata.freguesia}</span>
-                                        </div>
-                                        <div className="col-span-2 pt-1">
-                                            <span className="uppercase text-gray-400 block mb-0.5">{t.context}</span>
-                                            <p className="text-black leading-tight">{metadata.nearby}</p>
-                                        </div>
+                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5"><span className="uppercase text-gray-400">{t.coordinates}</span><span className="text-black">{metadata.lat}, {metadata.lng}</span></div>
+                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5"><span className="uppercase text-gray-400">{t.address}</span><span className="text-black text-right max-w-[150px] truncate">{metadata.street} {metadata.streetNo}</span></div>
+                                        <div className="flex justify-between border-b border-dashed border-gray-200 pb-0.5"><span className="uppercase text-gray-400">{t.zip}</span><span className="text-black">{metadata.postalCode}</span></div>
+                                        <div className="flex justify-between border-b border-dashed border-gray-200 pb-0.5"><span className="uppercase text-gray-400">{t.city}</span><span className="text-black">{metadata.municipality}</span></div>
+                                        <div className="col-span-2 flex justify-between border-b border-dashed border-gray-200 pb-0.5"><span className="uppercase text-gray-400">{t.parish}</span><span className="text-black">{metadata.freguesia}</span></div>
+                                        <div className="col-span-2 pt-1"><span className="uppercase text-gray-400 block mb-0.5">{t.context}</span><p className="text-black leading-tight">{metadata.nearby}</p></div>
                                     </div>
-                                    
-                                    {polyArea > 0 && (
-                                        <div className="mt-2 pt-2 border-t-2 border-black">
-                                            <div className="flex justify-between items-end mb-1">
-                                                <span className="uppercase font-bold text-black tracking-wider">{t.area}</span>
-                                                <span className="text-sm font-light text-black">{formatArea(polyArea)}</span>
-                                            </div>
-                                            
-                                            <div className="bg-gray-50 p-1.5 border border-gray-200">
-                                                <span className="uppercase text-[9px] text-gray-400 block mb-0.5">{t.vertices}</span>
-                                                <div className="max-h-20 overflow-y-auto custom-scrollbar">
-                                                    {polygonPoints.map((pt, i) => (
-                                                        <div key={i} className="flex justify-between py-0.5 text-gray-500 border-b border-gray-100 last:border-0">
-                                                            <span>P.{String(i+1).padStart(2,'0')}</span>
-                                                            <span>{pt.lat.toFixed(6)}, {pt.lng.toFixed(6)}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+                                    {polyArea > 0 && (<div className="mt-2 pt-2 border-t-2 border-black"><div className="flex justify-between items-end mb-1"><span className="uppercase font-bold text-black tracking-wider">{t.area}</span><span className="text-sm font-light text-black">{formatArea(polyArea)}</span></div><div className="bg-gray-50 p-1.5 border border-gray-200"><span className="uppercase text-[9px] text-gray-400 block mb-0.5">{t.vertices}</span><div className="max-h-20 overflow-y-auto custom-scrollbar">{polygonPoints.map((pt, i) => (<div key={i} className="flex justify-between py-0.5 text-gray-500 border-b border-gray-100 last:border-0"><span>P.{String(i+1).padStart(2,'0')}</span><span>{pt.lat.toFixed(6)}, {pt.lng.toFixed(6)}</span></div>))}</div></div></div>)}
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Widget Footer Actions */}
-                    <div className="bg-white border-b border-gray-200 p-4 z-30 flex justify-between items-center gap-3">
-                        {/* Upload Button Section */}
+                    {/* STICKY BOTTOM ACTION BAR */}
+                    <div className="bg-white border-b border-gray-200 p-4 z-30 flex justify-between items-center gap-3 sticky bottom-0 w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                         <div>
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                multiple 
-                                accept="image/*,application/pdf" 
-                                onChange={handleFileUpload}
-                            />
-                            <button 
-                                onClick={() => fileInputRef.current.click()}
-                                title={t.uploadTooltip}
-                                className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-400 text-xs uppercase tracking-widest transition-all"
-                            >
-                                <Icons.Upload /> {t.upload}
-                            </button>
+                            <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*,application/pdf" onChange={handleFileUpload} />
+                            <button onClick={() => fileInputRef.current.click()} title={t.uploadTooltip} className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-400 text-xs uppercase tracking-widest transition-all"><Icons.Upload /> {t.upload}</button>
                         </div>
-
-                        {/* Existing Right-Side Buttons */}
                         <div className="flex gap-3">
-                            <button 
-                                onClick={resetAll}
-                                className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 text-xs uppercase tracking-widest transition-all"
-                            >
-                                <Icons.Trash /> {t.clear}
-                            </button>
-                            
-                            <button 
-                                onClick={() => setShowMetadata(true)}
-                                className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-black hover:bg-gray-50 hover:border-black text-xs uppercase tracking-widest transition-all"
-                            >
-                                <Icons.Table /> {t.data}
-                            </button>
-                            
-                            {/* Export Menu Container */}
-                            <div className="relative" ref={exportMenuRef}>
-                                <button 
-                                    onClick={() => setShowExportMenu(!showExportMenu)}
-                                    className={`flex items-center gap-2 px-6 py-2 bg-black text-white hover:bg-gray-800 text-xs uppercase tracking-widest transition-all ${showExportMenu ? 'bg-gray-800' : ''}`}
-                                >
-                                    <Icons.Download /> {t.export}
-                                </button>
-
-                                {/* Export Dropdown */}
-                                {showExportMenu && (
-                                    <div className="absolute bottom-full right-0 mb-2 w-48 bg-white border border-gray-200 shadow-xl rounded-sm py-1 z-50 animate-fadeIn">
-                                        <button 
-                                            onClick={downloadJson}
-                                            className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-xs uppercase tracking-wider text-gray-700 transition-colors border-b border-gray-100"
-                                        >
-                                            <Icons.FileJson /> {t.jsonData}
-                                        </button>
-                                        <button 
-                                            onClick={handleDownloadPdf}
-                                            className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-xs uppercase tracking-wider text-gray-700 transition-colors"
-                                        >
-                                            <Icons.FilePdf /> {t.pdfReport}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                            <button onClick={resetAll} className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 text-xs uppercase tracking-widest transition-all"><Icons.Trash /> {t.clear}</button>
+                            <button onClick={() => setShowMetadata(true)} className="flex items-center gap-2 px-5 py-2 border border-gray-200 text-black hover:bg-gray-50 hover:border-black text-xs uppercase tracking-widest transition-all"><Icons.Table /> {t.data}</button>
+                            <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-6 py-2 bg-black text-white hover:bg-gray-800 text-xs uppercase tracking-widest transition-all"><Icons.Analysis /> {t.pdmAnalysis}</button>
                         </div>
                     </div>
+
+                    {showModal && <AnalysisModal onClose={() => setShowModal(false)} t={t} />}
                 </div>
             );
         };
@@ -870,7 +767,6 @@
         const App = () => {
             const [language, setLanguage] = useState('pt');
             const t = TRANSLATIONS[language];
-
             return (
                 <div className="flex flex-col min-h-screen w-full bg-white">
                     <Header lang={language} setLang={setLanguage} />
